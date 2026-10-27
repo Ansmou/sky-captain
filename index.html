@@ -28,8 +28,13 @@
          padding:7px 14px;font-weight:700;font-size:.92rem;text-align:center;max-width:88%;
          box-shadow:0 4px 12px rgba(20,60,90,.2)}
   #guide b{color:#e2574c}
-  #arrow{position:absolute;top:calc(110px + env(safe-area-inset-top));left:50%;z-index:11;
-         font-size:2rem;pointer-events:none;filter:drop-shadow(0 2px 3px rgba(0,0,0,.25))}
+  #arrow{position:absolute;top:calc(112px + env(safe-area-inset-top));left:50%;z-index:11;
+         font-size:2.3rem;pointer-events:none;filter:drop-shadow(0 2px 3px rgba(0,0,0,.3));
+         transition:transform .12s linear}
+  #arrow .glyph{display:inline-block}
+  #tgtDist{position:absolute;top:calc(158px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);
+           z-index:11;background:rgba(23,58,82,.75);color:#fff;border-radius:999px;padding:2px 12px;
+           font-size:.72rem;font-weight:700;pointer-events:none;display:none}
   #hoops{position:absolute;top:calc(8px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);
          z-index:10;background:rgba(255,255,255,.88);border:2.5px solid #7fb7d9;border-radius:999px;
          padding:4px 12px;font-weight:700;font-size:.82rem}
@@ -103,7 +108,8 @@
   </div>
   <div id="hoops" style="display:none">⭕ 0 / 3</div>
   <div id="guide" style="display:none">Hello!</div>
-  <div id="arrow" style="display:none">⬆</div>
+  <div id="arrow" style="display:none"><span class="glyph">➤</span></div>
+  <div id="tgtDist"></div>
   <div id="speedLbl">FAST</div>
   <div id="speedo"><div id="speedFill"></div><div class="zone" style="bottom:22%"></div><div class="zone" style="bottom:62%"></div></div>
 
@@ -228,7 +234,7 @@ renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
 $('gl').appendChild(renderer.domElement);
 const scene=new THREE.Scene();
 scene.background=new THREE.Color(0x8fd0f5);
-scene.fog=new THREE.Fog(0xa9dcf7,900,5000);
+scene.fog=new THREE.Fog(0x8ec9ea,1100,5200);
 const cam=new THREE.PerspectiveCamera(62,1,.5,9000);
 function resize(){
   const w=stage.clientWidth,h=stage.clientHeight;
@@ -244,7 +250,7 @@ const sunSpr=new THREE.Sprite(new THREE.SpriteMaterial({map:canvasTex(128,128,(c
   const g=c.createRadialGradient(64,64,4,64,64,62);
   g.addColorStop(0,'rgba(255,246,214,1)');g.addColorStop(.4,'rgba(255,238,180,.5)');g.addColorStop(1,'rgba(255,238,180,0)');
   c.fillStyle=g;c.fillRect(0,0,128,128);}),fog:false,depthWrite:false}));
-sunSpr.scale.set(1400,1400,1);sunSpr.position.set(-2200,2400,1200);scene.add(sunSpr);
+sunSpr.scale.set(650,650,1);sunSpr.position.set(-2200,2400,1200);scene.add(sunSpr);
 
 /* water */
 const waterTex=canvasTex(256,256,(c,w,h)=>{
@@ -298,6 +304,14 @@ scene.add(runway);
 const apron=new THREE.Mesh(new THREE.PlaneGeometry(RWY.w+70,RWY.len+40),
   new THREE.MeshLambertMaterial({color:0x8a9d6a}));
 apron.rotation.x=-Math.PI/2;apron.position.set(RWY.x,0.1,RWY.z);scene.add(apron);
+
+/* golden home beacon over the runway — visible from anywhere */
+const beacon=new THREE.Mesh(new THREE.CylinderGeometry(6,6,380,12,1,true),
+  new THREE.MeshBasicMaterial({color:0xffd166,transparent:true,opacity:.3,side:THREE.DoubleSide,depthWrite:false,fog:false}));
+beacon.position.set(RWY.x,190,RWY.z-RWY.len/2+80);scene.add(beacon);
+const beaconRing=new THREE.Mesh(new THREE.TorusGeometry(22,3,10,36),
+  new THREE.MeshBasicMaterial({color:0xffd166,transparent:true,opacity:.5,fog:false}));
+beaconRing.rotation.x=Math.PI/2;beaconRing.position.set(RWY.x,6,RWY.z-RWY.len/2+80);scene.add(beaconRing);
 
 /* little town: houses + hangars */
 const townG=new THREE.Group();
@@ -639,7 +653,7 @@ function defaultGuide(){
   }else{
     if(S.mState==='hoops'&&S.hoopI<hoops.length)guide('Fly through the golden hoop! '+S.hoopsGot+'/'+hoops.length+' done');
     else if(S.mState==='return')guide('Turn toward home ✈️ and line up with the runway');
-    else if(S.mState==='land')guide('Slow down a little, glide down gently, touch the runway softly 🛬');
+    else if(S.mState==='land')guide('Follow the golden beam 🏠 — slow down, glide, touch down softly 🛬');
     else guide('Explore! 🏝️ Or come back and land');
   }
 }
@@ -655,18 +669,20 @@ function updateHoops(){
 
 /* ---------------- arrow ---------------- */
 function arrow(){
-  const t=targetNow(),el=$('arrow');
-  if(!t||S.phase!=='fly'){el.style.display='none';return;}
-  el.style.display='block';
+  const t=targetNow(),el=$('arrow'),dist=$('tgtDist');
+  if(!t||S.phase!=='fly'){el.style.display='none';dist.style.display='none';return;}
+  el.style.display='block';dist.style.display='block';
   const dx=t.x-S.x,dz=t.z-S.z;
-  const bearing=Math.atan2(dx,dz); // world bearing
+  const bearing=Math.atan2(dx,dz);
   let rel=bearing-S.heading;
   while(rel>Math.PI)rel-=Math.PI*2;while(rel<-Math.PI)rel+=Math.PI*2;
   const deg=rel*R2D;
   el.style.transform=`translateX(-50%) rotate(${deg}deg)`;
-  el.textContent=deg>-20&&deg<20?'⬆':(deg>0?'➡':'⬅');
-  el.style.left=deg>-20&&deg<20?'50%':(deg>0?'78%':'22%');
-  el.style.top=deg>-20&&deg<20?'110px':'180px';
+  const d=Math.hypot(dx,dz);
+  const isHome=S.mState==='land'||S.mState==='return';
+  dist.textContent=isHome
+    ?('🏠 home '+(d>=1000?(d/1000).toFixed(1)+' km':Math.round(d)+' m'))
+    :('⭕ hoop '+(d>=1000?(d/1000).toFixed(1)+' km':Math.round(d)+' m'));
 }
 
 /* ---------------- rendering sync ---------------- */
@@ -692,6 +708,10 @@ function syncScene(dt,now){
     h.mesh.rotation.z+=dt*.5;
     h.mesh.scale.setScalar(1+Math.sin(now/260)*.045);
   }
+  // beacon pulse (brighter when landing)
+  beacon.material.opacity=.2+Math.sin(now/280)*.1+(S.mState==='land'?.22:0);
+  beaconRing.material.opacity=.35+Math.sin(now/280)*.2;
+  beaconRing.scale.setScalar(1+Math.sin(now/280)*.18);
   // camera
   const back=S.plane.size*2.1+9, up=S.plane.size*.5+3.4;
   const hx=Math.sin(S.heading),hz=Math.cos(S.heading);
@@ -728,7 +748,8 @@ function syncJoy(){
 joy.addEventListener('pointerdown',e=>{
   if(S.phase!=='fly')return;
   audioInit();e.preventDefault();
-  joyId=e.pointerId;joy.setPointerCapture(joyId);joyMove(e);
+  joyId=e.pointerId;joyMove(e);
+  try{joy.setPointerCapture(joyId);}catch(err){}
 });
 function joyMove(e){
   if(joyId!==e.pointerId)return;
@@ -751,7 +772,8 @@ function syncThr(){
 thr.addEventListener('pointerdown',e=>{
   if(S.phase!=='fly')return;
   audioInit();e.preventDefault();
-  thrId=e.pointerId;thr.setPointerCapture(thrId);thrMove(e);
+  thrId=e.pointerId;thrMove(e);
+  try{thr.setPointerCapture(thrId);}catch(err){}
 });
 function thrMove(e){
   if(thrId!==e.pointerId)return;
