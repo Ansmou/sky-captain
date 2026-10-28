@@ -716,15 +716,16 @@ function syncScene(dt,now){
   const back=S.plane.size*2.1+9, up=S.plane.size*.5+3.4;
   const hx=Math.sin(S.heading),hz=Math.cos(S.heading);
   if(S.view==='chase'){
+    cam.up.set(0,1,0);                       // always reset the roll from cockpit view
     const want=new THREE.Vector3(S.x-hx*back,S.y+up,S.z-hz*back);
     if(cam.position.distanceTo(want)>150)cam.position.copy(want);  // snap when far (start/teleport)
     else cam.position.lerp(want,Math.min(1,5.5*dt));
     cam.lookAt(S.x+hx*30,S.y+2+S.pitch*30,S.z+hz*30);
   }else{
     const c=planeMesh.userData.cock;
-    cam.position.set(S.x+hx*0+c.x*Math.cos(S.heading),S.y+1+c.y,S.z+c.x*Math.sin(S.heading));
-    cam.lookAt(S.x+hx*40,S.y+1+c.y+Math.sin(S.pitch)*40*0+Math.tan(S.pitch)*40,S.z+hz*40);
+    cam.position.set(S.x+hx*c.x,S.y+c.y,S.z+hz*c.x);   // at the windshield, along the fuselage
     cam.up.set(Math.sin(-S.bank)*.35,1,0);
+    cam.lookAt(S.x+hx*40,S.y+c.y+Math.tan(S.pitch)*40,S.z+hz*40);
   }
 }
 function hud(){
